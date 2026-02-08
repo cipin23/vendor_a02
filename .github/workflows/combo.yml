@@ -1,10 +1,7 @@
-name: Build Vendor and Boot A02 Fixed
+name: Build Vendor and Boot A02 NoPathError
 
 on:
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   build-combo:
@@ -23,11 +20,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc build-essential zip curl libstdc++6 git wget python3 repo libssl-dev rsync
 
-      - name: Setup Source
+      - name: Setup and Sync
         run: |
-          # Gunakan path absolut GITHUB_WORKSPACE agar tidak tersesat
-          mkdir -p $GITHUB_WORKSPACE/android
-          cd $GITHUB_WORKSPACE/android
+          # Kita sinkronisasi LANGSUNG di root workspace, gak pake folder 'android' lagi
           git config --global user.name "rdbckp-bot"
           git config --global user.email "rdbckp@users.noreply.github.com"
           repo init -u https://github.com/LineageOS/android.git -b lineage-18.1 --depth=1 --groups=all,-notdefault,-device,-vts,-pdk
@@ -35,23 +30,23 @@ jobs:
 
       - name: Manual Clone Trees
         run: |
-          cd $GITHUB_WORKSPACE/android
-          # Gunakan x-access-token untuk menghindari error username/auth
+          # Clone langsung ke folder yang sudah dibuat repo sync
+          rm -rf device/samsung/a02 vendor/samsung/a02 kernel/samsung/a02
           git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/rdbckp/device_samsung_a02.git -b main device/samsung/a02
           git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/rdbckp/vendor_a02.git -b main vendor/samsung/a02
           git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/rdbckp/a022f_kernel.git -b master kernel/samsung/a02
 
       - name: Build Boot and Vendor
         run: |
-          cd $GITHUB_WORKSPACE/android
-          # Pastikan path absolut saat source envsetup
+          # Cek lokasi kita sekarang
+          pwd
+          # Cek apakah file envsetup ada di sekitar sini
+          ls build/envsetup.sh
+          
           export ALLOW_MISSING_DEPENDENCIES=true
-          source $GITHUB_WORKSPACE/android/build/envsetup.sh
+          source build/envsetup.sh
+          lunch lineage_a02-userdebug
           
-          # Pakai lunch sesuai device tree
-          lunch lineage_a02-userdebug || lunch lineage_a02-eng
-          
-          # Masak satu-satu biar ketahuan errornya di mana
           make bootimage -j$(nproc --all)
           make vendorimage -j$(nproc --all)
 
@@ -61,5 +56,5 @@ jobs:
         with:
           name: A02_Combo_Pack
           path: |
-            ${{ github.workspace }}/android/out/target/product/a02/vendor.img
-            ${{ github.workspace }}/android/out/target/product/a02/boot.img
+            out/target/product/a02/vendor.img
+            out/target/product/a02/boot.img
