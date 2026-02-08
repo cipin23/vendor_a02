@@ -22,19 +22,22 @@ jobs:
 
       - name: Setup and Sync (Babat Alas Mode)
         run: |
-          # 1. Bikin folder kerja baru yang bener-bener steril
-          mkdir -p /home/runner/work/build_area
-          cd /home/runner/work/build_area
+          # Bikin folder bener-bener dari nol di Home
+          mkdir -p ~/android
+          cd ~/android
           
-          # 2. Setup Git
           git config --global user.name "rdbckp-bot"
           git config --global user.email "rdbckp@users.noreply.github.com"
-          git config --global color.ui false
           
-          # 3. Init dan Sync (Skip error launcher update)
-          export REPO_URL='https://gerrit.googlesource.com/git-repo'
-          repo init -u https://github.com/LineageOS/android.git -b lineage-18.1 --depth=1 --groups=all,-notdefault,-device,-vts,-pdk
-          repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
+          # Init dengan manifest yang bener
+          repo init -u https://github.com/LineageOS/android.git -b lineage-18.1 --depth=1
+          
+          # SYNC SAKTI: Kita paksa dia narik semua folder penting!
+          # Kita tambahin -c (current branch) dan --no-tags biar ringan
+          repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune
+          
+          # CEK DETIK INI JUGA: Ada gak foldernya?
+          ls -F
 
       - name: Manual Clone Trees
         run: |
