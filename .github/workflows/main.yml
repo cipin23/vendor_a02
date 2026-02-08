@@ -1,4 +1,4 @@
-name: Auto Generate Vendor Tree A02
+name: Auto Generate Vendor Tree A02 (Simple Mode)
 
 on:
   workflow_dispatch:
@@ -13,86 +13,79 @@ jobs:
           token: ${{ secrets.GH_TOKEN }}
           fetch-depth: 0
 
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bc build-essential curl git libxml2-utils python3
-
-      - name: Setup Tools & Device Tree
-        run: |
-          # 1. Clone tools ke folder terpisah
-          git clone --depth=1 https://github.com/LineageOS/android_vendor_lineage.git $HOME/lineage_tools
-          
-          # 2. Siapkan folder target
-          mkdir -p vendor/samsung/a02
-
-          # 3. Buat proprietary-files.txt
-          cat <<EOF > vendor/samsung/a02/proprietary-files.txt
-          # Graphics
-          vendor/lib/hw/gralloc.mt6739.so
-          vendor/lib/hw/hwcomposer.mt6739.so
-          vendor/lib/libgralloc_extra.so
-          # Audio
-          vendor/bin/hw/android.hardware.audio.service
-          vendor/lib/hw/audio.primary.mt6739.so
-          vendor/lib/libaudiofthalservice.so
-          # RIL / Sinyal
-          vendor/bin/hw/rild
-          vendor/lib/libmtk-ril.so
-          # Media & Others
-          vendor/etc/media_codecs.xml
-          vendor/lib/libion.so
-          EOF
-
-          # 4. Buat extract-files.sh (Pake path absolut biar gak pusing)
-          cat <<EOF > vendor/samsung/a02/extract-files.sh
-          #!/bin/bash
-          export DEVICE=a02
-          export VENDOR=samsung
-          export LINEAGE_ROOT=$GITHUB_WORKSPACE
-          
-          # Panggil langsung pake path absolut hasil clone tadi
-          bash $HOME/lineage_tools/build/tools/extract_utils.sh "\$@"
-          EOF
-
-          # 5. Buat setup-makefiles.sh
-          cat <<EOF > vendor/samsung/a02/setup-makefiles.sh
-          #!/bin/bash
-          export DEVICE=a02
-          export VENDOR=samsung
-          export LINEAGE_ROOT=$GITHUB_WORKSPACE
-          
-          bash $HOME/lineage_tools/build/tools/setup_makefiles.sh "\$@"
-          EOF
-
-          chmod +x vendor/samsung/a02/*.sh
-
       - name: Download and Unpack Vendor Dump
         run: |
           curl -L "https://github.com/rdbckp/vendor/raw/main/vendor.tar.gz" -o vendor_dump.tar.gz
           mkdir -p dump_folder
           tar -xzpf vendor_dump.tar.gz -C dump_folder/
 
-      - name: Execute Extraction
+      - name: Manual Extraction & Makefile Generator
         run: |
-          cd vendor/samsung/a02
-          # Jalankan ekstraksi, arahkan ke folder dump
-          ./extract-files.sh $GITHUB_WORKSPACE/dump_folder/
-          ./setup-makefiles.sh
+          DEVICE=a02
+          VENDOR=samsung
+          TARGET_DIR="vendor/$VENDOR/$DEVICE"
+          PROP_DIR="$TARGET_DIR/proprietary"
+          
+          mkdir -p "$PROP_DIR"
+
+          # 1. Daftar file yang mau diambil
+          FILES=(
+            "vendor/lib/hw/gralloc.mt6739.so"
+            "vendor/lib/hw/hwcomposer.mt6739.so"
+            "vendor/lib/libgralloc_extra.so"
+            "vendor/bin/hw/android.hardware.audio.service"
+            "vendor/lib/hw/audio.primary.mt6739.so"
+            "vendor/lib/libaudiofthalservice.so"
+            "vendor/bin/hw/rild"
+            "vendor/lib/libmtk-ril.so"
+            "vendor/etc/media_codecs.xml"
+            "vendor/lib/libion.so"
+          )
+
+          # 2. Proses Copy File
+          echo "Copying files from dump..."
+          for file in "${FILES[@]}"; do
+            # Cek di dump_folder/vendor/...
+            if [ -f "dump_folder/$file" ]; then
+              # Buat subfolder jika perlu (misal vendor/lib/hw)
+              DEST_SUBDIR=$(dirname "$file")
+              mkdir -p "$PROP_DIR/${DEST_SUBDIR#vendor/}"
+              cp "dump_folder/$file" "$PROP_DIR/${DEST_SUBDIR#vendor/}/"
+              echo "  [OK] $file"
+            else
+              echo "  [MISSING] $file"
+            fi
+          done
+
+          # 3. Generate a02-vendor.mk secara otomatis
+          echo "Generating $DEVICE-vendor.mk..."
+          cat <<EOF > "$TARGET_DIR/$DEVICE-vendor.mk"
+          PRODUCT_COPY_FILES += \\
+          EOF
+
+          for file in "${FILES[@]}"; do
+            if [ -f "dump_folder/$file" ]; then
+              # Format: path/asal:path/tujuan_di_rom
+              echo "    $PROP_DIR/${file#vendor/}:$file \\" >> "$TARGET_DIR/$DEVICE-vendor.mk"
+            fi
+          done
+
+          # 4. Generate BoardConfigVendor.mk
+          echo "DEVICE_VENDOR_RELEASE_CONFIG_WILDCARD := vendor/$VENDOR/$DEVICE/configs/*.xml" > "$TARGET_DIR/BoardConfigVendor.mk"
 
       - name: Commit and Push to Main
         run: |
           git config --global user.name "rdbckp-bot"
           git config --global user.email "rdbckp@users.noreply.github.com"
           
-          # Hapus sampah biar repo gak bengkak
+          # Bersihkan sampah
           rm -rf vendor_dump.tar.gz dump_folder
           
           git add .
           
           if git diff-index --quiet HEAD; then
-            echo "Gak ada perubahan, skip push."
+            echo "No changes to commit"
           else
-            git commit -m "Generate vendor tree from A02 dump [$(date +'%Y%m%d')]"
+            git commit -m "Manual generate vendor tree A02 [$(date +'%Y%m%d')]"
             git push origin main
           fi
