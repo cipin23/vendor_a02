@@ -1,0 +1,100 @@
+name: Auto Generate Vendor Tree A02
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Vendor Repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_TOKEN }} # Pake PAT yang lo bikin tadi
+          fetch-depth: 0
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc build-essential curl git libxml2-utils python3
+
+      - name: Setup Lineage Tools
+        run: |
+          # Clone tools ekstraksi LineageOS ke folder luar
+          git clone --depth=1 https://github.com/LineageOS/android_vendor_lineage.git $GITHUB_WORKSPACE/lineage_tools
+
+      - name: Prepare Device Directory
+        run: |
+          # Pastikan struktur folder ada
+          mkdir -p vendor/samsung/a02
+          
+          # Buat list file yang mau diambil (proprietary-files.txt)
+          cat <<EOF > vendor/samsung/a02/proprietary-files.txt
+          # Graphics
+          vendor/lib/hw/gralloc.mt6739.so
+          vendor/lib/hw/hwcomposer.mt6739.so
+          vendor/lib/libgralloc_extra.so
+          # Audio
+          vendor/bin/hw/android.hardware.audio.service
+          vendor/lib/hw/audio.primary.mt6739.so
+          vendor/lib/libaudiofthalservice.so
+          # RIL / Sinyal
+          vendor/bin/hw/rild
+          vendor/lib/libmtk-ril.so
+          # Media & Others
+          vendor/etc/media_codecs.xml
+          vendor/lib/libion.so
+          EOF
+
+          # Buat skrip extract-files.sh
+          cat <<EOF > vendor/samsung/a02/extract-files.sh
+          #!/bin/bash
+          export DEVICE=a02
+          export VENDOR=samsung
+          export LINEAGE_ROOT=$GITHUB_WORKSPACE
+          function helper() {
+              export LIBRE_SOURCES=true
+              \$GITHUB_WORKSPACE/lineage_tools/build/tools/extract_utils.sh "\$@"
+          }
+          helper "\${DEVICE}" "\${VENDOR}" "\${LINEAGE_ROOT}" false false
+          EOF
+
+          # Buat skrip setup-makefiles.sh
+          cat <<EOF > vendor/samsung/a02/setup-makefiles.sh
+          #!/bin/bash
+          export DEVICE=a02
+          export VENDOR=samsung
+          export LINEAGE_ROOT=$GITHUB_WORKSPACE
+          \$GITHUB_WORKSPACE/lineage_tools/build/tools/setup_makefiles.sh "\$@"
+          EOF
+
+          chmod +x vendor/samsung/a02/*.sh
+
+      - name: Download and Unpack Vendor Dump
+        run: |
+          # Ambil vendor.tar.gz dari repo rdbckp/vendor
+          curl -L "https://github.com/rdbckp/vendor/raw/main/vendor.tar.gz" -o vendor_dump.tar.gz
+          mkdir -p dump_folder
+          tar -xzpf vendor_dump.tar.gz -C dump_folder/
+
+      - name: Execute Extraction
+        run: |
+          # Jalankan ekstraksi dari folder alat
+          cd vendor/samsung/a02
+          ./extract-files.sh ../../../dump_folder/
+          ./setup-makefiles.sh
+
+      - name: Commit and Push to Main
+        run: |
+          git config --global user.name "rdbckp-bot"
+          git config --global user.email "rdbckp@users.noreply.github.com"
+          
+          # Tambahkan semua file baru (termasuk folder proprietary)
+          git add .
+          
+          if git diff-index --quiet HEAD; then
+            echo "Gak ada perubahan, skip push."
+          else
+            git commit -m "Generate vendor tree from A02 dump [$(date +'%Y%m%d')]"
+            git push origin main
+          fi
