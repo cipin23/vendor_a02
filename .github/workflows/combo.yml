@@ -38,13 +38,12 @@ jobs:
       - name: Manual Clone Trees (Gerilya)
         run: |
           cd ~/android
-          # Hapus folder jika ada untuk menghindari conflict
           rm -rf device/samsung/a02 vendor/samsung/a02 kernel/samsung/a02
           
-          # Clone langsung ke target folder
-          git clone --depth=1 https://github.com/rdbckp/device_samsung_a02.git -b main device/samsung/a02
-          git clone --depth=1 https://github.com/rdbckp/vendor_samsung_a02.git -b main vendor/samsung/a02
-          git clone --depth=1 https://github.com/rdbckp/a022f_kernel.git -b master kernel/samsung/a02
+          # Gunakan GITHUB_TOKEN bawaan biar gak ditanya username/password
+          git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/rdbckp/device_samsung_a02.git -b main device/samsung/a02
+          git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/rdbckp/vendor_samsung_a02.git -b main vendor/samsung/a02
+          git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/rdbckp/a022f_kernel.git -b master kernel/samsung/a02
 
       - name: Build Vendor and Boot
         run: |
