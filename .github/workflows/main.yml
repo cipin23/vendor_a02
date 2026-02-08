@@ -18,16 +18,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc build-essential curl git libxml2-utils python3
 
-      - name: Setup Lineage Tools
+      - name: Setup Tools and Directories
         run: |
-          # Clone tools ke direktori home runner agar path-nya absolut dan aman
-          git clone --depth=1 https://github.com/LineageOS/android_vendor_lineage.git $HOME/lineage_tools
-
-      - name: Prepare Device Directory
-        run: |
-          mkdir -p vendor/samsung/a02
+          # Clone tools langsung ke folder workspace biar pasti ketemu
+          git clone --depth=1 https://github.com/LineageOS/android_vendor_lineage.git $GITHUB_WORKSPACE/lineage_tools
           
-          # 1. proprietary-files.txt
+          mkdir -p vendor/samsung/a02
+
+          # 1. Buat proprietary-files.txt
           cat <<EOF > vendor/samsung/a02/proprietary-files.txt
           # Graphics
           vendor/lib/hw/gralloc.mt6739.so
@@ -45,26 +43,30 @@ jobs:
           vendor/lib/libion.so
           EOF
 
-          # 2. extract-files.sh (Path diperbaiki ke $HOME)
-          cat <<EOF > vendor/samsung/a02/extract-files.sh
+          # 2. Buat extract-files.sh dengan path relatif yang lebih aman
+          cat <<'EOF' > vendor/samsung/a02/extract-files.sh
           #!/bin/bash
           export DEVICE=a02
           export VENDOR=samsung
-          export LINEAGE_ROOT=$GITHUB_WORKSPACE
+          # Ambil path root secara dinamis
+          export LINEAGE_ROOT=$(pwd)/../../..
+          
           function helper() {
               export LIBRE_SOURCES=true
-              $HOME/lineage_tools/build/tools/extract_utils.sh "\$@"
+              bash "${LINEAGE_ROOT}/lineage_tools/build/tools/extract_utils.sh" "$@"
           }
-          helper "\${DEVICE}" "\${VENDOR}" "\${LINEAGE_ROOT}" false false
+          
+          helper "${DEVICE}" "${VENDOR}" "${LINEAGE_ROOT}" false false
           EOF
 
-          # 3. setup-makefiles.sh (Path diperbaiki ke $HOME)
-          cat <<EOF > vendor/samsung/a02/setup-makefiles.sh
+          # 3. Buat setup-makefiles.sh
+          cat <<'EOF' > vendor/samsung/a02/setup-makefiles.sh
           #!/bin/bash
           export DEVICE=a02
           export VENDOR=samsung
-          export LINEAGE_ROOT=$GITHUB_WORKSPACE
-          $HOME/lineage_tools/build/tools/setup_makefiles.sh "\$@"
+          export LINEAGE_ROOT=$(pwd)/../../..
+          
+          bash "${LINEAGE_ROOT}/lineage_tools/build/tools/setup_makefiles.sh" "$@"
           EOF
 
           chmod +x vendor/samsung/a02/*.sh
@@ -72,21 +74,23 @@ jobs:
       - name: Download and Unpack Vendor Dump
         run: |
           curl -L "https://github.com/rdbckp/vendor/raw/main/vendor.tar.gz" -o vendor_dump.tar.gz
-          mkdir -p $GITHUB_WORKSPACE/dump_folder
-          tar -xzpf vendor_dump.tar.gz -C $GITHUB_WORKSPACE/dump_folder/
+          mkdir -p dump_folder
+          tar -xzpf vendor_dump.tar.gz -C dump_folder/
 
       - name: Execute Extraction
         run: |
-          # Masuk ke direktori tempat skrip berada
           cd vendor/samsung/a02
-          # Jalankan ekstraksi dengan mengarahkan ke folder dump
-          ./extract-files.sh $GITHUB_WORKSPACE/dump_folder/
-          ./setup-makefiles.sh
+          # Kita panggil pake bash langsung buat mastiin dia jalan
+          bash ./extract-files.sh ../../../dump_folder/
+          bash ./setup-makefiles.sh
 
       - name: Commit and Push to Main
         run: |
           git config --global user.name "rdbckp-bot"
           git config --global user.email "rdbckp@users.noreply.github.com"
+          
+          # Bersihkan tools biar gak ikut ter-commit
+          rm -rf lineage_tools dump_folder vendor_dump.tar.gz
           
           git add .
           
