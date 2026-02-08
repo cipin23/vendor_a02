@@ -47,16 +47,23 @@ jobs:
 
       - name: Build Vendor and Boot
         run: |
+          # Pindah ke folder source
           cd ~/android
-          export ALLOW_MISSING_DEPENDENCIES=true
-          source build/envsetup.sh
-          lunch lineage_a02-userdebug
           
-          # Masak Boot Image (Kernel + Ramdisk)
-          make bootimage -j$(nproc --all)
-          
-          # Masak Vendor Image
-          make vendorimage -j$(nproc --all)
+          # Pastikan file envsetup ada sebelum source
+          if [ -f build/envsetup.sh ]; then
+            export ALLOW_MISSING_DEPENDENCIES=true
+            source build/envsetup.sh
+            lunch lineage_a02-userdebug
+            
+            # Masak Boot & Vendor
+            make bootimage -j$(nproc --all)
+            make vendorimage -j$(nproc --all)
+          else
+            echo "ERROR: Source code gak ketemu di ~/android"
+            ls -a
+            exit 1
+          fi
 
       - name: Upload Combo Result
         if: success()
@@ -64,5 +71,5 @@ jobs:
         with:
           name: A02_Combo_Pack
           path: |
-            ~/android/out/target/product/a02/vendor.img
-            ~/android/out/target/product/a02/boot.img
+            /home/runner/android/out/target/product/a02/vendor.img
+            /home/runner/android/out/target/product/a02/boot.img
