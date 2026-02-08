@@ -1,0 +1,37 @@
+- name: Manual Extraction & Makefile Generator
+        run: |
+          DEVICE=a02
+          VENDOR=samsung
+          TARGET_DIR="vendor/$VENDOR/$DEVICE"
+          PROP_DIR="$TARGET_DIR/proprietary"
+          
+          mkdir -p "$PROP_DIR"
+
+          # INTIP ISI DUMP (Cek log buat liat ini!)
+          echo "--- CEK ISI DUMP ---"
+          ls -R dump_folder | head -n 20
+          echo "--------------------"
+
+          FILES=(
+            "vendor/lib/hw/gralloc.mt6739.so"
+            "vendor/lib/hw/hwcomposer.mt6739.so"
+            # ... dst (sesuaikan listnya)
+          )
+
+          for file in "${FILES[@]}"; do
+            # Kita coba cari file tanpa peduli folder 'vendor/' di depannya
+            FILENAME=$(basename "$file")
+            FOUND_PATH=$(find dump_folder -name "$FILENAME" | head -n 1)
+
+            if [ -n "$FOUND_PATH" ]; then
+              DEST_SUBDIR=$(dirname "$file")
+              mkdir -p "$PROP_DIR/${DEST_SUBDIR#vendor/}"
+              cp "$FOUND_PATH" "$PROP_DIR/${DEST_SUBDIR#vendor/}/"
+              echo "  [OK] Found $FILENAME at $FOUND_PATH"
+            else
+              echo "  [MISSING] $file"
+            fi
+          done
+          
+          # Biar folder proprietary gak ilang kalo kosong, kita kasih file pancingan
+          touch "$PROP_DIR/.gitkeep"
