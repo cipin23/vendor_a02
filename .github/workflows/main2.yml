@@ -1,4 +1,25 @@
-- name: Manual Extraction & Makefile Generator
+name: Auto Generate Vendor Tree A02 (Smart Mode)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Vendor Repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+          fetch-depth: 0
+
+      - name: Download and Unpack Vendor Dump
+        run: |
+          curl -L "https://github.com/rdbckp/vendor/raw/main/vendor.tar.gz" -o vendor_dump.tar.gz
+          mkdir -p dump_folder
+          tar -xzpf vendor_dump.tar.gz -C dump_folder/
+
+      - name: Manual Extraction & Makefile Generator
         run: |
           DEVICE=a02
           VENDOR=samsung
@@ -6,32 +27,71 @@
           PROP_DIR="$TARGET_DIR/proprietary"
           
           mkdir -p "$PROP_DIR"
+          # Pancingan biar folder gak ilang kalau kosong
+          touch "$PROP_DIR/.gitkeep"
 
-          # INTIP ISI DUMP (Cek log buat liat ini!)
-          echo "--- CEK ISI DUMP ---"
-          ls -R dump_folder | head -n 20
-          echo "--------------------"
-
+          # List file target (lo bisa tambah list ini nanti)
           FILES=(
             "vendor/lib/hw/gralloc.mt6739.so"
             "vendor/lib/hw/hwcomposer.mt6739.so"
-            # ... dst (sesuaikan listnya)
+            "vendor/lib/libgralloc_extra.so"
+            "vendor/bin/hw/android.hardware.audio.service"
+            "vendor/lib/hw/audio.primary.mt6739.so"
+            "vendor/lib/libaudiofthalservice.so"
+            "vendor/bin/hw/rild"
+            "vendor/lib/libmtk-ril.so"
+            "vendor/etc/media_codecs.xml"
+            "vendor/lib/libion.so"
           )
 
+          echo "--- PROSES EKSTRAKSI ---"
           for file in "${FILES[@]}"; do
-            # Kita coba cari file tanpa peduli folder 'vendor/' di depannya
             FILENAME=$(basename "$file")
+            # Cari file di dump tanpa peduli struktur folder asalnya
             FOUND_PATH=$(find dump_folder -name "$FILENAME" | head -n 1)
 
             if [ -n "$FOUND_PATH" ]; then
-              DEST_SUBDIR=$(dirname "$file")
-              mkdir -p "$PROP_DIR/${DEST_SUBDIR#vendor/}"
-              cp "$FOUND_PATH" "$PROP_DIR/${DEST_SUBDIR#vendor/}/"
-              echo "  [OK] Found $FILENAME at $FOUND_PATH"
+              # Buat struktur folder tujuan (misal lib/hw/)
+              DEST_SUBDIR=$(dirname "${file#vendor/}")
+              mkdir -p "$PROP_DIR/$DEST_SUBDIR"
+              
+              cp "$FOUND_PATH" "$PROP_DIR/$DEST_SUBDIR/"
+              echo "  [OK] Found $FILENAME"
             else
               echo "  [MISSING] $file"
             fi
           done
+
+          echo "--- GENERATING MAKEFILES ---"
+          # Generate a02-vendor.mk
+          {
+            echo "# Auto-generated file. DO NOT MODIFY."
+            echo "PRODUCT_COPY_FILES += \\"
+            for file in "${FILES[@]}"; do
+              FILENAME=$(basename "$file")
+              # Cek apakah file berhasil di-copy tadi
+              if [ -f "$PROP_DIR/$(dirname "${file#vendor/}")/$FILENAME" ]; then
+                echo "    $PROP_DIR/$(dirname "${file#vendor/}")/$FILENAME:$file \\"
+              fi
+            done
+          } > "$TARGET_DIR/$DEVICE-vendor.mk"
+
+          # Generate BoardConfigVendor.mk
+          echo "DEVICE_VENDOR_RELEASE_CONFIG_WILDCARD := vendor/$VENDOR/$DEVICE/configs/*.xml" > "$TARGET_DIR/BoardConfigVendor.mk"
+
+      - name: Commit and Push to Main
+        run: |
+          git config --global user.name "rdbckp-bot"
+          git config --global user.email "rdbckp@users.noreply.github.com"
           
-          # Biar folder proprietary gak ilang kalo kosong, kita kasih file pancingan
-          touch "$PROP_DIR/.gitkeep"
+          # Hapus file sampah sebelum push
+          rm -rf vendor_dump.tar.gz dump_folder
+          
+          git add .
+          
+          if git diff-index --quiet HEAD; then
+            echo "No changes to commit"
+          else
+            git commit -m "Smart generate vendor tree A02 [$(date +'%Y%m%d')]"
+            git push origin main
+          fi
