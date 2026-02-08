@@ -1,4 +1,4 @@
-name: A02 Build Combo Super Final
+name: A02 Build Combo Full Sakti
 
 on:
   workflow_dispatch:
@@ -20,51 +20,40 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc build-essential zip curl libstdc++6 git wget python3 repo libssl-dev rsync
 
-      - name: Setup and Sync (Babat Alas Mode)
+      - name: Setup and Sync (Babat Alas)
         run: |
-          # Bikin folder bener-bener dari nol di Home
           mkdir -p ~/android
           cd ~/android
-          
           git config --global user.name "rdbckp-bot"
           git config --global user.email "rdbckp@users.noreply.github.com"
+          git config --global color.ui false
           
-          # Init dengan manifest yang bener
-          repo init -u https://github.com/LineageOS/android.git -b lineage-18.1 --depth=1
-          
-          # SYNC SAKTI: Kita paksa dia narik semua folder penting!
-          # Kita tambahin -c (current branch) dan --no-tags biar ringan
+          export REPO_URL='https://gerrit.googlesource.com/git-repo'
+          repo init -u https://github.com/LineageOS/android.git -b lineage-18.1 --depth=1 --groups=all,-notdefault,-device,-vts,-pdk
           repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --prune
-          
-          # CEK DETIK INI JUGA: Ada gak foldernya?
-          ls -F
 
       - name: Manual Clone Trees
         run: |
-          cd /home/runner/work/build_area
-          # Clone ke jalur yang udah pasti ada build/envsetup.sh-nya
+          cd ~/android
+          # Hapus folder default biar gak konflik
+          rm -rf device/samsung/a02 vendor/samsung/a02 kernel/samsung/a02
+          
           git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/rdbckp/device_samsung_a02.git -b main device/samsung/a02
           git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/rdbckp/vendor_a02.git -b main vendor/samsung/a02
           git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/rdbckp/a022f_kernel.git -b master kernel/samsung/a02
 
       - name: Build Boot and Vendor (The Real Battle)
         run: |
-          cd /home/runner/work/build_area
+          cd ~/android
+          export ALLOW_MISSING_DEPENDENCIES=true
           
-          # Pastikan file sakti itu ada!
-          if [ -f build/envsetup.sh ]; then
-            export ALLOW_MISSING_DEPENDENCIES=true
-            source build/envsetup.sh
-            lunch lineage_a02-userdebug
-            
-            # Masak Boot & Vendor
-            make bootimage -j$(nproc --all)
-            make vendorimage -j$(nproc --all)
-          else
-            echo "DEUHHHH! Masih gak ada juga build/envsetup.sh-nya!"
-            find . -maxdepth 2 -not -path '*/.*'
-            exit 1
-          fi
+          # Sekarang jalannya sudah lurus ke build/envsetup.sh
+          source build/envsetup.sh
+          lunch lineage_a02-userdebug
+          
+          # Proses Masak Utama
+          make bootimage -j$(nproc --all)
+          make vendorimage -j$(nproc --all)
 
       - name: Upload Result
         if: success()
@@ -72,5 +61,5 @@ jobs:
         with:
           name: A02_Combo_Pack_Final
           path: |
-            /home/runner/work/build_area/out/target/product/a02/vendor.img
-            /home/runner/work/build_area/out/target/product/a02/boot.img
+            /home/runner/android/out/target/product/a02/vendor.img
+            /home/runner/android/out/target/product/a02/boot.img
