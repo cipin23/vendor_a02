@@ -1,4 +1,4 @@
-name: Build Vendor Boot A02 Rata Tanah
+name: A02 Build Combo Super Final
 
 on:
   workflow_dispatch:
@@ -20,41 +20,54 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y bc build-essential zip curl libstdc++6 git wget python3 repo libssl-dev rsync
 
-      - name: Repo Sync (Halaman Depan)
+      - name: Setup and Sync (Babat Alas Mode)
         run: |
+          # 1. Bikin folder kerja baru yang bener-bener steril
+          mkdir -p /home/runner/work/build_area
+          cd /home/runner/work/build_area
+          
+          # 2. Setup Git
           git config --global user.name "rdbckp-bot"
           git config --global user.email "rdbckp@users.noreply.github.com"
-          # Kita init langsung di root ($GITHUB_WORKSPACE)
+          git config --global color.ui false
+          
+          # 3. Init dan Sync (Skip error launcher update)
+          export REPO_URL='https://gerrit.googlesource.com/git-repo'
           repo init -u https://github.com/LineageOS/android.git -b lineage-18.1 --depth=1 --groups=all,-notdefault,-device,-vts,-pdk
           repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
 
       - name: Manual Clone Trees
         run: |
-          # Pastikan folder target bersih sebelum clone
-          rm -rf device/samsung/a02 vendor/samsung/a02 kernel/samsung/a02
+          cd /home/runner/work/build_area
+          # Clone ke jalur yang udah pasti ada build/envsetup.sh-nya
           git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/rdbckp/device_samsung_a02.git -b main device/samsung/a02
           git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/rdbckp/vendor_a02.git -b main vendor/samsung/a02
           git clone --depth=1 https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/rdbckp/a022f_kernel.git -b master kernel/samsung/a02
 
-      - name: Build Boot and Vendor (The Moment of Truth)
+      - name: Build Boot and Vendor (The Real Battle)
         run: |
-          # Sekarang kita di root, jadi 'build/envsetup.sh' HARUSNYA di depan mata
-          echo "Cek lokasi..."
-          pwd
-          ls -d build/ || echo "Folder build GAK ADA!"
+          cd /home/runner/work/build_area
           
-          export ALLOW_MISSING_DEPENDENCIES=true
-          source build/envsetup.sh
-          lunch lineage_a02-userdebug
-          
-          make bootimage -j$(nproc --all)
-          make vendorimage -j$(nproc --all)
+          # Pastikan file sakti itu ada!
+          if [ -f build/envsetup.sh ]; then
+            export ALLOW_MISSING_DEPENDENCIES=true
+            source build/envsetup.sh
+            lunch lineage_a02-userdebug
+            
+            # Masak Boot & Vendor
+            make bootimage -j$(nproc --all)
+            make vendorimage -j$(nproc --all)
+          else
+            echo "DEUHHHH! Masih gak ada juga build/envsetup.sh-nya!"
+            find . -maxdepth 2 -not -path '*/.*'
+            exit 1
+          fi
 
       - name: Upload Result
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: A02_Combo_Pack
+          name: A02_Combo_Pack_Final
           path: |
-            out/target/product/a02/vendor.img
-            out/target/product/a02/boot.img
+            /home/runner/work/build_area/out/target/product/a02/vendor.img
+            /home/runner/work/build_area/out/target/product/a02/boot.img
