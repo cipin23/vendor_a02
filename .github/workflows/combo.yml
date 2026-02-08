@@ -47,21 +47,22 @@ jobs:
 
       - name: Build Vendor and Boot
         run: |
-          # Pindah ke folder source
-          cd ~/android
+          # Kita masuk ke folder tempat bahan-bahan lo berada
+          cd /home/runner/android 
           
-          # Pastikan file envsetup ada sebelum source
-          if [ -f build/envsetup.sh ]; then
+          # Kita tes lagi, kalau ada folder 'kernel', langsung gas!
+          if [ -d "kernel" ]; then
             export ALLOW_MISSING_DEPENDENCIES=true
             source build/envsetup.sh
             lunch lineage_a02-userdebug
             
-            # Masak Boot & Vendor
+            # Masak Duo Maut
             make bootimage -j$(nproc --all)
             make vendorimage -j$(nproc --all)
           else
-            echo "ERROR: Source code gak ketemu di ~/android"
-            ls -a
+            echo "Waduh, kok folder kernel ilang? Coba cek posisi gue di:"
+            pwd
+            ls -F
             exit 1
           fi
 
