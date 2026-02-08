@@ -55,24 +55,22 @@ jobs:
               echo "    $f:vendor/$CLEAN_PATH \\" >> "$TARGET_DIR/$DEVICE-vendor.mk"
           done
 
-          # 2. Generate Android.mk (Disederhanakan)
-          cat <<EOF > "$TARGET_DIR/Android.mk"
-LOCAL_PATH := \$(call my-dir)
-ifeq (\$(TARGET_DEVICE),$DEVICE)
-include \$(LOCAL_PATH)/$DEVICE-vendor.mk
+          # 2. Generate Android.mk (Pake kutip di EOF biar karakter $ aman)
+          cat <<'EOF' > "$TARGET_DIR/Android.mk"
+LOCAL_PATH := $(call my-dir)
+ifeq ($(TARGET_DEVICE),a02)
+include $(LOCAL_PATH)/a02-vendor.mk
 endif
 EOF
 
           # 3. Generate AndroidProducts.mk
-          cat <<EOF > "$TARGET_DIR/AndroidProducts.mk"
-PRODUCT_MAKEFILES := \\
-    \$(LOCAL_DIR)/$DEVICE-vendor.mk
+          cat <<'EOF' > "$TARGET_DIR/AndroidProducts.mk"
+PRODUCT_MAKEFILES := \
+    $(LOCAL_DIR)/a02-vendor.mk
 EOF
 
           # 4. Generate BoardConfigVendor.mk
-          cat <<EOF > "$TARGET_DIR/BoardConfigVendor.mk"
-DEVICE_VENDOR_RELEASE_CONFIG_WILDCARD := vendor/$VENDOR/$DEVICE/configs/*.xml
-EOF
+          echo "DEVICE_VENDOR_RELEASE_CONFIG_WILDCARD := vendor/samsung/a02/configs/*.xml" > "$TARGET_DIR/BoardConfigVendor.mk"
 
       - name: Commit and Push to Main
         run: |
