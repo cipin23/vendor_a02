@@ -1,0 +1,5 @@
+PRODUCT_COPY_FILES += \
+    vendor/samsung/a02/proprietary/build.prop:vendor/build.prop \
+    vendor/samsung/a02/proprietary/default.prop:vendor/default.prop \
+    vendor/samsung/a02/proprietary/ro.prop:vendor/ro.prop \
+    vendor/samsung/a02/proprietary/rw.prop:vendor/rw.prop

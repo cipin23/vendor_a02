@@ -1,0 +1,4 @@
+LOCAL_PATH := $(call my-dir)
+ifeq ($(TARGET_DEVICE),__DEVICE_NAME__)
+include $(LOCAL_PATH)/__DEVICE_NAME__-vendor.mk
+endif

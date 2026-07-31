@@ -1,0 +1,73 @@
+name: build-vendor-img-zip
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_name:
+        description: Nama artifact zip yang akan dihasilkan
+        required: false
+        default: vendor-a02
+      release_tag:
+        description: Tag release opsional (misal v1.0.0)
+        required: false
+        default: ''
+      make_release:
+        description: Buat GitHub Release otomatis
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-zip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y e2fsprogs zip mkfs.ext4
+
+      - name: Build vendor.img as ext4
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARTIFACT_NAME="${{ github.event.inputs.artifact_name }}"
+          WORKDIR="$RUNNER_TEMP/vendor-build"
+          mkdir -p "$WORKDIR/src" "$WORKDIR/out" "$WORKDIR/mnt"
+
+          cp -a vendor_a02/. "$WORKDIR/src/"
+
+          IMG_PATH="$WORKDIR/out/${ARTIFACT_NAME}.img"
+          ZIP_PATH="$GITHUB_WORKSPACE/${ARTIFACT_NAME}.zip"
+
+          truncate -s 512M "$IMG_PATH"
+          mkfs.ext4 -F -L vendor "$IMG_PATH"
+
+          sudo mkdir -p "$WORKDIR/mnt"
+          sudo mount -o loop "$IMG_PATH" "$WORKDIR/mnt"
+          sudo cp -a "$WORKDIR/src/." "$WORKDIR/mnt/"
+          sync
+          sudo umount "$WORKDIR/mnt"
+
+          zip -r "$ZIP_PATH" "$IMG_PATH"
+          ls -lh "$ZIP_PATH"
+
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.inputs.artifact_name }}
+          path: ${{ github.workspace }}/*.zip
+          if-no-files-found: error
+
+      - name: Create GitHub Release
+        if: ${{ github.event.inputs.make_release == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.release_tag || format('build-{0}', github.run_id) }}
+          files: |
+            ${{ github.workspace }}/*.zip

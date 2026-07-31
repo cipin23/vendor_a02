@@ -1,4 +1,4 @@
-name: Vendor Repo Inspector
+name: repo-inspector
 
 on:
   workflow_dispatch:
@@ -16,9 +16,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Basic Information
+      - name: Install tree
+        run: sudo apt-get update && sudo apt-get install -y tree
+
+      - name: Detect repository
+        run: bash scripts/detect_repo.sh
+
+      - name: Scan blobs
+        run: bash scripts/scan_blobs.sh
+
+      - name: Create inspection report
         run: |
-          mkdir report
+          mkdir -p report
 
           {
             echo "===== DATE ====="
@@ -33,114 +42,46 @@ jobs:
             echo
             echo "===== ROOT ====="
             pwd
-
           } > report/info.txt
-
-      - name: Full Directory Tree
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y tree
 
           tree -a -L 8 > report/tree.txt || true
 
-      - name: Find Important Files
-        run: |
           {
             echo "===== Android.bp ====="
-            find . -name Android.bp
+            find . -name Android.bp || true
 
             echo
             echo "===== Android.mk ====="
-            find . -name Android.mk
+            find . -name Android.mk || true
 
             echo
             echo "===== BoardConfigVendor.mk ====="
-            find . -name BoardConfigVendor.mk
+            find . -name BoardConfigVendor.mk || true
 
             echo
             echo "===== AndroidProducts.mk ====="
-            find . -name AndroidProducts.mk
+            find . -name AndroidProducts.mk || true
 
             echo
             echo "===== proprietary-files.txt ====="
-            find . -name proprietary-files.txt
-
-            echo
-            echo "===== extract-files.sh ====="
-            find . -name extract-files.sh
-
-            echo
-            echo "===== extract-files.py ====="
-            find . -name extract-files.py
-
-            echo
-            echo "===== setup-makefiles.sh ====="
-            find . -name setup-makefiles.sh
+            find . -name proprietary-files.txt || true
 
             echo
             echo "===== proprietary ====="
-            find . -type d -name proprietary
-
+            find . -type d -name proprietary || true
           } > report/files.txt
 
-      - name: Detect Vendor Structure
-        run: |
-          {
-            echo "===== DEVICE DIRECTORIES ====="
-            find . -maxdepth 4 -type d
-
-            echo
-            echo "===== FILE COUNT ====="
-            find . -type f | wc -l
-
-            echo
-            echo "===== DIRECTORY COUNT ====="
-            find . -type d | wc -l
-
-          } > report/layout.txt
-
-      - name: Detect Proprietary Files
-        run: |
           {
             echo "===== BLOBS ====="
-
-            find . \
-            \( \
-              -name "*.so" -o \
-              -name "*.apk" -o \
-              -name "*.jar" -o \
-              -name "*.xml" -o \
-              -name "*.bin" -o \
-              -name "*.rc" -o \
-              -name "*.conf" -o \
-              -name "*.json" -o \
-              -name "*.ko" \
-            \)
-
+            find . \( -name "*.so" -o -name "*.apk" -o -name "*.jar" -o -name "*.xml" -o -name "*.bin" -o -name "*.rc" -o -name "*.conf" -o -name "*.json" -o -name "*.ko" \) || true
           } > report/blobs.txt
 
-      - name: Detect Existing PRODUCT_COPY_FILES
-        run: |
           grep -R "PRODUCT_COPY_FILES" . > report/product_copy_files.txt || true
-
-      - name: Detect PRODUCT_PACKAGES
-        run: |
           grep -R "PRODUCT_PACKAGES" . > report/product_packages.txt || true
-
-      - name: Detect LOCAL_PATH
-        run: |
           grep -R "LOCAL_PATH" . > report/local_path.txt || true
-
-      - name: Detect Blueprint Modules
-        run: |
           grep -R "cc_prebuilt_library_shared" . > report/blueprint.txt || true
-
-      - name: Show Repository Size
-        run: |
           du -sh . > report/size.txt
 
-      - name: Git Status
-        run: |
           {
             git status
             echo
@@ -149,8 +90,6 @@ jobs:
             git remote -v
           } > report/git.txt
 
-      - name: Compress Report
-        run: |
           tar -czf vendor_repo_report.tar.gz report
 
       - name: Upload Report
@@ -160,3 +99,4 @@ jobs:
           path: |
             report/
             vendor_repo_report.tar.gz
+

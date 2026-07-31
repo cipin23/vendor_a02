@@ -1,0 +1,39 @@
+name: repo-generator
+
+on:
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Detect repository
+        run: bash scripts/detect_repo.sh
+      - name: Scan blobs
+        run: bash scripts/scan_blobs.sh
+      - name: Generate Android.bp
+        run: bash scripts/generate_android_bp.sh
+      - name: Generate Android.mk
+        run: bash scripts/generate_android_mk.sh
+      - name: Generate AndroidProducts.mk
+        run: bash scripts/generate_android_products.sh
+      - name: Generate BoardConfigVendor.mk
+        run: bash scripts/generate_boardconfig_vendor.sh
+      - name: Generate vendor makefile
+        run: bash scripts/generate_vendor_mk.sh
+      - name: Generate property files inventory
+        run: bash scripts/generate_propfiles.sh
+      - name: Generate packages inventory
+        run: bash scripts/generate_packages.sh
+      - name: Normalize copyfiles
+        run: bash scripts/normalize_copyfiles.sh
+      - name: Sort modules
+        run: bash scripts/sort_modules.sh
+      - name: Remove duplicates
+        run: bash scripts/remove_duplicates.sh
+      - name: Validate vendor repo
+        run: bash scripts/validate_vendor.sh
+      - name: Commit and push
+        run: bash scripts/git_commit_push.sh

@@ -1,0 +1,13 @@
+name: repo-clean
+
+on:
+  workflow_dispatch:
+
+jobs:
+  clean:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Remove temporary artifacts
+        run: rm -f vendor_a02/samsung/a02/.blob-manifest.txt vendor_a02/samsung/a02/.android-bp-modules.txt vendor_a02/samsung/a02/.packages.txt vendor_a02/samsung/a02/.copyfiles.normalized vendor_a02/samsung/a02/.android.bp.sorted
